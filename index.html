@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ABAK 2.0 | سامانه هوشمند تحلیل خاک و سودآوری کشاورزی</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            line-height: 1.5;
+        }
+
+        /* هدر مدرن با گرادیان */
+        .header {
+            background: linear-gradient(135deg, #0a2e1c 0%, #1a5d3a 50%, #2d6a4f 100%);
+            padding: 56px 24px 80px;
+            text-align: center;
+            position: relative;
+            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 20px;
+            color: #e8f5e9;
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: white;
+            margin-bottom: 12px;
+        }
+
+        .header p {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.85);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* کانتینر اصلی - کارت شناور */
+        .container {
+            max-width: 1400px;
+            margin: -48px auto 0;
+            padding: 0 24px 48px;
+            position: relative;
+        }
+
+        /* تب‌ها */
+        .tabs {
+            display: flex;
+            gap: 12px;
+            background: white;
+            padding: 8px;
+            border-radius: 60px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            margin-bottom: 32px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 24px;
+            background: transparent;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .tab-btn i {
+            font-size: 1rem;
+        }
+
+        .tab-btn:hover {
+            background: #f1f5f9;
+            color: #1a5d3a;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #1a5d3a 0%, #2d6a4f 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(26,93,58,0.25);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeInUp 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* کارت‌ها */
+        .card {
+            background: white;
+            border-radius: 32px;
+            padding: 28px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0a2e1c;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e8f5e9;
+        }
+
+        .card-title i {
+            color: #1a5d3a;
+            font-size: 1.2rem;
+        }
+
+        /* گریدها */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        /* متریک کارت‌ها - شیشه‌ای مدرن */
+        .metric {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            padding: 20px;
+            border-radius: 24px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s;
+        }
+
+        .metric:hover {
+            transform: translateY(-3px);
+            border-color: #cbd5e1;
+            box-shadow: 0 10px 25px -10px rgba(0,0,0,0.1);
+        }
+
+        .metric h4 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .metric .value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        /* دکمه‌ها */
+        .btn {
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #1a5d3a 0%, #2d6a4f 100%);
+            color: white;
+            border: none;
+            border-radius: 44px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(26,93,58,0.4);
+        }
+
+        /* فرم */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #1a5d3a;
+            box-shadow: 0 0 0 3px rgba(26,93,58,0.1);
+            background: white;
+        }
+
+        /* نقشه */
+        .map-wrapper {
+            border-radius: 24px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            border: 1px solid #e2e8f0;
+        }
+        #map {
+            height: 360px;
+            width: 100%;
+        }
+
+        /* جدول رتبه‌بندی */
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .ranking-table th, .ranking-table td {
+            padding: 14px 12px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .ranking-table th {
+            background: #f8fafc;
+            color: #1a5d3a;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+
+        .ranking-table tr:hover {
+            background: #f8fafc;
+        }
+
+        /* سود مثبت/منفی */
+        .profit-positive {
+            color: #10b981;
+            font-weight: 700;
+        }
+
+        /* کارت سود ویژه */
+        .profit-card {
+            background: linear-gradient(135deg, #064e3b 0%, #1a5d3a 100%);
+            color: white;
+            padding: 28px;
+            border-radius: 28px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .profit-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .profit-card .profit-value {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 16px 0;
+        }
+
+        /* باکس توصیه */
+        .advice-box {
+            background: #f0fdf4;
+            padding: 20px;
+            border-radius: 24px;
+            margin: 20px 0;
+        }
+
+        .advice-box h4 {
+            color: #0a2e1c;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* لودینگ */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            background: white;
+            border-radius: 32px;
+            display: none;
+        }
+        .loading.show { display: block; }
+        .spinner {
+            width: 45px;
+            height: 45px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #1a5d3a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* فوتر */
+        .footer {
+            text-align: center;
+            padding: 32px 24px;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 48px;
+        }
+
+        /* ریسپانسیو */
+        @media (max-width: 900px) {
+            .grid-2, .grid-4 { grid-template-columns: 1fr; gap: 16px; }
+            .container { padding: 0 16px 32px; }
+            .tabs { flex-wrap: wrap; border-radius: 40px; }
+            .tab-btn { flex: 1; padding: 10px 16px; font-size: 0.8rem; }
+            .header h1 { font-size: 1.8rem; }
+            .header { padding: 40px 20px 60px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="badge"><i class="fas fa-microchip"></i> مبتنی بر هوش مصنوعی و داده‌های ماهواره‌ای</div>
+    <h1>🌾 ABAK 2.0</h1>
+    <p>سامانه هوشمند تحلیل خاک | پیش‌بینی سودآوری | توصیه‌های مدیریتی</p>
+</div>
+
+<div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('map-tab')"><i class="fas fa-map-marked-alt"></i> نقشه تعاملی</button>
+        <button class="tab-btn" onclick="switchTab('manual-tab')"><i class="fas fa-sliders-h"></i> ورود دستی</button>
+        <button class="tab-btn" onclick="switchTab('profit-tab')"><i class="fas fa-chart-line"></i> تحلیل سودآوری</button>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p style="color: #64748b;">در حال تحلیل داده‌های خاک با هوش مصنوعی...</p>
+    </div>
+
+    <!-- تب 1: نقشه تعاملی -->
+    <div id="map-tab" class="tab-content active">
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-map"></i> نقشه هوشمند خاک ایران</div>
+                <div class="map-wrapper"><div id="map"></div></div>
+                <div style="margin-top: 16px; padding: 12px; background: #f0fdf4; border-radius: 20px; text-align: center; font-size: 0.8rem;">
+                    <i class="fas fa-info-circle"></i> روی نقشه کلیک کنید یا مختصات را وارد کنید
+                </div>
+                <div class="grid-2" style="margin-top: 16px; gap: 12px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label><i class="fas fa-arrow-up"></i> عرض جغرافیایی</label>
+                        <input type="number" id="latInput" step="any" value="35.6892">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label><i class="fas fa-arrow-right"></i> طول جغرافیایی</label>
+                        <input type="number" id="lngInput" step="any" value="51.3890">
+                    </div>
+                </div>
+                <button class="btn" onclick="analyzeFromMap()" style="margin-top: 16px;"><i class="fas fa-microscope"></i> تحلیل این نقطه</button>
+            </div>
+            <div id="resultPanel" class="card">
+                <div class="card-title"><i class="fas fa-chart-bar"></i> نتایج تحلیل</div>
+                <div style="text-align: center; color: #94a3b8; padding: 40px 20px;">
+                    <i class="fas fa-map-marker-alt" style="font-size: 2rem; margin-bottom: 12px; display: inline-block;"></i>
+                    <p>روی نقشه کلیک کنید</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تب 2: ورود دستی -->
+    <div id="manual-tab" class="tab-content">
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-edit"></i> ورود پارامترها</div>
+                <div class="form-group"><label><i class="fas fa-leaf"></i> NDVI</label><input type="number" id="ndviInput" step="0.01" value="0.6"></div>
+                <div class="form-group"><label><i class="fas fa-tint"></i> بارش (mm)</label><input type="number" id="precipInput" value="600"></div>
+                <div class="form-group"><label><i class="fas fa-thermometer-half"></i> دما (°C)</label><input type="number" id="tempInput" step="0.1" value="17"></div>
+                <div class="form-group"><label><i class="fas fa-mountain"></i> ارتفاع (m)</label><input type="number" id="elevInput" value="500"></div>
+                <div class="form-group"><label><i class="fas fa-cube"></i> رس (Clay %)</label><input type="number" id="clayInput" value="25"></div>
+                <button class="btn" onclick="analyzeFromManual()"><i class="fas fa-chart-line"></i> تحلیل خاک</button>
+            </div>
+            <div id="resultPanelManual" class="card">
+                <div class="card-title"><i class="fas fa-chart-bar"></i> نتایج تحلیل</div>
+                <div style="text-align: center; color: #94a3b8; padding: 40px 20px;"><i class="fas fa-sliders-h" style="font-size: 2rem; margin-bottom: 12px; display: inline-block;"></i><p>مقادیر را وارد کنید</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تب 3: تحلیل سودآوری -->
+    <div id="profit-tab" class="tab-content">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-coins"></i> تحلیل سودآوری اختصاصی</div>
+            <div class="grid-2">
+                <div><div class="form-group"><label>🧂 شوری (EC)</label><input type="number" id="profitEc" step="0.1" value="4.0"></div>
+                <div class="form-group"><label>⚗️ اسیدیته (pH)</label><input type="number" id="profitPh" step="0.1" value="7.5"></div>
+                <div class="form-group"><label>🌿 مواد آلی (OM%)</label><input type="number" id="profitOm" step="0.1" value="1.2"></div></div>
+                <div><div class="form-group"><label>🌾 محصول (اختیاری)</label><select id="profitCrop"><option value="all">همه محصولات</option><option value="wheat">گندم</option><option value="barley">جو</option><option value="corn">ذرت</option><option value="pistachio">پسته</option><option value="saffron">زعفران</option></select></div>
+                <div class="form-group"><label>💧 آب در دسترس (m³/ha)</label><input type="number" id="profitWater" value="5000"></div></div>
+            </div>
+            <button class="btn" onclick="analyzeProfitOnly()"><i class="fas fa-chart-simple"></i> محاسبه سودآوری</button>
+        </div>
+        <div id="profitResultPanel" style="margin-top: 24px;"></div>
+    </div>
+
+    <div class="footer">
+        <p>© ۲۰۲۶ VARIA AgTech Studio | استودیوی فناوری‌های کشاورزی هوشمند</p>
+        <p style="margin-top: 8px;"><i class="fas fa-envelope"></i> varia.agtech@gmail.com | <i class="fab fa-telegram"></i> @varia_support | <i class="fas fa-hashtag"></i> @varia_agtech</p>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://127.0.0.1:8001';
+
+    // تخمین داده‌ها از مختصات
+    function estimateFromLatLng(lat, lng) {
+        let ndvi = 0.4 + (37 - lat) / 35;
+        ndvi = Math.min(0.85, Math.max(0.15, ndvi));
+        let precip = 150 + (37 - lat) * 45;
+        precip = Math.min(900, Math.max(150, precip));
+        let temp = 12 + (35 - lat) * 0.45;
+        temp = Math.min(28, Math.max(8, temp));
+        let elev = 200 + Math.abs(35 - lat) * 100;
+        elev = Math.min(2500, Math.max(50, elev));
+        let clay = 15 + Math.abs(lat - 32) * 1.4;
+        clay = Math.min(50, Math.max(10, clay));
+        let texture = clay > 40 ? 'clay' : (clay > 30 ? 'clay_loam' : (clay > 15 ? 'loam' : (clay > 5 ? 'sandy_loam' : 'sandy')));
+        let waterReq = lat > 37 ? 4500 : (lat > 34 ? 5500 : (lat > 30 ? 6500 : 7500));
+        if (texture === 'clay') waterReq += 1000;
+        else if (texture === 'sandy') waterReq -= 1000;
+        return { ndvi, precip, temp, elev, clay, texture, waterReq };
+    }
+
+    async function callAPI(ndvi, precip, temp, elev, clay) {
+        try {
+            const res = await fetch(`${API_URL}/full-analysis-with-profit`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ndvi, precipitation: precip, temperature: temp, elevation: elev, clay })
+            });
+            return res.ok ? await res.json() : null;
+        } catch(e) { return null; }
+    }
+
+    function renderResult(data, targetId) {
+        const soil = data.soil_properties;
+        const best = data.best_crop;
+        const textureMap = { sandy:'شنی', sandy_loam:'لوم شنی', loam:'لوم', clay_loam:'لوم رسی', clay:'رسی' };
+        let html = `
+            <div class="grid-4">
+                <div class="metric"><h4>🧂 شوری (EC)</h4><div class="value" style="color:${soil.ec<4?'#10b981':soil.ec<8?'#f59e0b':'#ef4444'}">${soil.ec}</div><div class="unit">dS/m</div><small>${soil.ec<2?'غیرشور':soil.ec<4?'کم‌شور':soil.ec<8?'شور':'بسیار شور'}</small></div>
+                <div class="metric"><h4>⚗️ اسیدیته (pH)</h4><div class="value" style="color:${soil.ph>=6.5&&soil.ph<=7.5?'#10b981':'#f59e0b'}">${soil.ph}</div><small>${soil.ph>=6.5&&soil.ph<=7.5?'ایده‌آل':'قابل قبول'}</small></div>
+                <div class="metric"><h4>🌿 مواد آلی</h4><div class="value" style="color:${soil.organic_matter>2?'#10b981':soil.organic_matter>1?'#f59e0b':'#ef4444'}">${soil.organic_matter}%</div><small>${soil.organic_matter>2?'عالی':soil.organic_matter>1?'خوب':'کم'}</small></div>
+                <div class="metric"><h4>🌍 کربن آلی</h4><div class="value" style="color:${soil.carbon>4?'#10b981':soil.carbon>2?'#f59e0b':'#ef4444'}">${soil.carbon}%</div><small>${soil.carbon>4?'عالی':soil.carbon>2?'متوسط':'ضعیف'}</small></div>
+            </div>
+            <div class="profit-card"><h3>🏆 محصول پیشنهادی: ${best.crop_fa}</h3><div class="profit-value">${best.profit.toLocaleString()} تومان</div><p>سود خالص در هکتار | ROI: ${best.roi}%</p><p style="font-size:0.85rem;">📊 عملکرد: ${best.predicted_yield} تن/هکتار | کاهش عملکرد: ${best.yield_reduction_percent}%</p></div>
+            <div class="advice-box"><h4><i class="fas fa-lightbulb"></i> توصیه‌های مدیریتی</h4><p>• ${data.salinity_advice}</p><p>• ${data.ph_advice}</p><p>• ${data.om_advice}</p><p>• ${data.carbon_advice}</p></div>
+            <h4 style="margin: 20px 0 12px;"><i class="fas fa-chart-simple"></i> رتبه‌بندی محصولات بر اساس سودآوری</h4>
+            <table class="ranking-table"><thead><tr><th>محصول</th><th>عملکرد (تن/هکتار)</th><th>سود خالص (تومان)</th><th>ROI</th></tr></thead><tbody>
+            ${data.ranked_crops.slice(0,5).map(c => `<tr><td><strong>${c.crop_fa}</strong></td><td>${c.predicted_yield}</td><td class="profit-positive">${c.profit.toLocaleString()}</td><td>${c.roi}%</td></tr>`).join('')}
+            </tbody></table>`;
+        document.getElementById(targetId).innerHTML = html;
+    }
+
+    async function analyzeFromMap() {
+        showLoading(true);
+        const lat = parseFloat(document.getElementById('latInput').value);
+        const lng = parseFloat(document.getElementById('lngInput').value);
+        const env = estimateFromLatLng(lat, lng);
+        const data = await callAPI(env.ndvi, env.precip, env.temp, env.elev, env.clay);
+        showLoading(false);
+        if (data) { renderResult(data, 'resultPanel'); document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth' }); }
+        else { document.getElementById('resultPanel').innerHTML = '<div class="card-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> خطا</div><p>سرور API اجرا نیست.</p>'; }
+    }
+
+    async function analyzeFromManual() {
+        showLoading(true);
+        const ndvi=parseFloat(document.getElementById('ndviInput').value), precip=parseFloat(document.getElementById('precipInput').value), temp=parseFloat(document.getElementById('tempInput').value), elev=parseFloat(document.getElementById('elevInput').value), clay=parseFloat(document.getElementById('clayInput').value);
+        const data = await callAPI(ndvi, precip, temp, elev, clay);
+        showLoading(false);
+        if (data) { renderResult(data, 'resultPanelManual'); document.getElementById('resultPanelManual').scrollIntoView({ behavior: 'smooth' }); }
+        else { document.getElementById('resultPanelManual').innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;">خطا</div>'; }
+    }
+
+    async function analyzeProfitOnly() {
+        showLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/profit-analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ndvi:0.6, precipitation:600, temperature:17, elevation:500, clay:25 }) });
+            if (res.ok) {
+                const data = await res.json();
+                const filter = document.getElementById('profitCrop').value;
+                let crops = data.ranked_crops;
+                if (filter !== 'all') crops = crops.filter(c => c.crop === filter);
+                let html = `<div class="card"><div class="card-title">💰 نتایج سودآوری</div>`;
+                crops.slice(0,6).forEach(c => { html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #e2e8f0;"><span style="font-weight:700;">${c.crop_fa}</span><span>${c.predicted_yield} تن</span><span class="profit-positive">${c.profit.toLocaleString()} تومان</span><span>ROI: ${c.roi}%</span></div>`; });
+                html += `<div style="margin-top:16px; padding:12px; background:#f0fdf4; border-radius:20px;"><i class="fas fa-info-circle"></i> برای تحلیل دقیق‌تر از تب نقشه استفاده کنید.</div></div>`;
+                document.getElementById('profitResultPanel').innerHTML = html;
+            } else throw new Error();
+        } catch(e) { document.getElementById('profitResultPanel').innerHTML = `<div class="card"><div class="card-title" style="color:#dc2626;">❌ خطا</div><p>سرور در دسترس نیست.</p></div>`; }
+        finally { showLoading(false); }
+    }
+
+    function showLoading(show) { document.getElementById('loading').classList.toggle('show', show); }
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // نقشه
+    let map = L.map('map').setView([35.6892, 51.3890], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>', subdomains: 'abcd' }).addTo(map);
+    let marker = L.marker([35.6892, 51.3890]).addTo(map);
+    map.on('click', function(e) {
+        document.getElementById('latInput').value = e.latlng.lat.toFixed(6);
+        document.getElementById('lngInput').value = e.latlng.lng.toFixed(6);
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+        analyzeFromMap();
+    });
+</script>
+</body>
+</html>
