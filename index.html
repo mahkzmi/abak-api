@@ -465,7 +465,70 @@
 </div>
 
 <script>
-    const API_URL =' https://mahkzmi.github.io/abak-api/';
+    // تابع شبیه‌سازی داده‌ها (بدون نیاز به سرور)
+    async function getSimulatedData(ndvi, precip, temp, elev, clay) {
+        // شبیه‌سازی تاخیر شبکه
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // محاسبه شوری بر اساس رس و ارتفاع
+        let ec = (clay / 20) + (elev / 1000) + (Math.random() * 1.5);
+        ec = Math.min(12, Math.max(0.8, ec));
+        
+        // محاسبه pH
+        let ph = 6.5 + (clay / 100) + (Math.random() * 0.8);
+        ph = Math.min(8.5, Math.max(5.5, ph));
+        
+        // مواد آلی بر اساس NDVI و بارش
+        let organic_matter = (ndvi * 2.5) + (precip / 800) + (Math.random() * 0.5);
+        organic_matter = Math.min(4.5, Math.max(0.5, organic_matter));
+        
+        let carbon = organic_matter * 0.58;
+        
+        // تعیین محصول بهینه
+        let crops = [
+            {crop_fa: "گندم", crop: "wheat", base_yield: 5.5, base_profit: 42000000},
+            {crop_fa: "جو", crop: "barley", base_yield: 6.2, base_profit: 36000000},
+            {crop_fa: "ذرت", crop: "corn", base_yield: 8.5, base_profit: 48000000},
+            {crop_fa: "پسته", crop: "pistachio", base_yield: 2.2, base_profit: 180000000},
+            {crop_fa: "زعفران", crop: "saffron", base_yield: 0.35, base_profit: 250000000}
+        ];
+        
+        // محاسبه ضریب کاهش عملکرد بر اساس شوری و pH
+        let salinity_factor = Math.max(0, 1 - (ec / 15));
+        let ph_factor = (ph >= 6.5 && ph <= 7.8) ? 1 : 0.7;
+        let om_factor = Math.min(1, organic_matter / 2.5);
+        
+        let ranked_crops = crops.map(crop => {
+            let yield_reduction = (1 - (salinity_factor * 0.7 + ph_factor * 0.3)) * 100;
+            let predicted_yield = crop.base_yield * salinity_factor * ph_factor * om_factor;
+            let profit = crop.base_profit * (predicted_yield / crop.base_yield);
+            let roi = ((profit - 15000000) / 15000000) * 100;
+            return {
+                ...crop,
+                predicted_yield: Math.round(predicted_yield * 10) / 10,
+                profit: Math.round(profit / 1000000) * 1000000,
+                roi: Math.round(roi),
+                yield_reduction_percent: Math.round(yield_reduction)
+            };
+        }).sort((a,b) => b.profit - a.profit);
+        
+        let best = ranked_crops[0];
+        
+        return {
+            soil_properties: {
+                ec: ec.toFixed(1), 
+                ph: ph.toFixed(1), 
+                organic_matter: organic_matter.toFixed(1), 
+                carbon: carbon.toFixed(1)
+            },
+            best_crop: best,
+            salinity_advice: ec > 6 ? "شوری بالا - آبشویی با آب شیرین ضروری است" : (ec > 3 ? "شوری متوسط - کشت ارقام مقاوم" : "شوری مناسب"),
+            ph_advice: ph > 7.8 ? "قلیایی - استفاده از گوگرد" : (ph < 6 ? "اسیدی - مصرف آهک" : "pH متعادل - مناسب"),
+            om_advice: organic_matter < 1 ? "مواد آلی بسیار کم - اضافه کردن کود دامی" : (organic_matter < 2 ? "مواد آلی متوسط - استفاده از کود سبز" : "مواد آلی خوب - حفظ وضعیت"),
+            carbon_advice: carbon < 1.5 ? "کربن کم - افزایش مواد آلی" : "کربن مناسب",
+            ranked_crops: ranked_crops
+        };
+    }
 
     // تخمین داده‌ها از مختصات
     function estimateFromLatLng(lat, lng) {
@@ -486,20 +549,20 @@
         return { ndvi, precip, temp, elev, clay, texture, waterReq };
     }
 
+    // تابع callAPI بازنویسی شده با داده شبیه‌سازی‌شده
     async function callAPI(ndvi, precip, temp, elev, clay) {
         try {
-            const res = await fetch(`${API_URL}/full-analysis-with-profit`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ndvi, precipitation: precip, temperature: temp, elevation: elev, clay })
-            });
-            return res.ok ? await res.json() : null;
-        } catch(e) { return null; }
+            const simulatedData = await getSimulatedData(ndvi, precip, temp, elev, clay);
+            return simulatedData;
+        } catch(e) { 
+            console.error(e);
+            return null; 
+        }
     }
 
     function renderResult(data, targetId) {
         const soil = data.soil_properties;
         const best = data.best_crop;
-        const textureMap = { sandy:'شنی', sandy_loam:'لوم شنی', loam:'لوم', clay_loam:'لوم رسی', clay:'رسی' };
         let html = `
             <div class="grid-4">
                 <div class="metric"><h4>🧂 شوری (EC)</h4><div class="value" style="color:${soil.ec<4?'#10b981':soil.ec<8?'#f59e0b':'#ef4444'}">${soil.ec}</div><div class="unit">dS/m</div><small>${soil.ec<2?'غیرشور':soil.ec<4?'کم‌شور':soil.ec<8?'شور':'بسیار شور'}</small></div>
@@ -524,7 +587,7 @@
         const data = await callAPI(env.ndvi, env.precip, env.temp, env.elev, env.clay);
         showLoading(false);
         if (data) { renderResult(data, 'resultPanel'); document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth' }); }
-        else { document.getElementById('resultPanel').innerHTML = '<div class="card-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> خطا</div><p>سرور API اجرا نیست.</p>'; }
+        else { document.getElementById('resultPanel').innerHTML = '<div class="card-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle"></i> خطا</div><p>خطا در تحلیل داده‌ها</p>'; }
     }
 
     async function analyzeFromManual() {
@@ -538,23 +601,21 @@
 
     async function analyzeProfitOnly() {
         showLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/profit-analysis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ndvi:0.6, precipitation:600, temperature:17, elevation:500, clay:25 }) });
-            if (res.ok) {
-                const data = await res.json();
-                const filter = document.getElementById('profitCrop').value;
-                let crops = data.ranked_crops;
-                if (filter !== 'all') crops = crops.filter(c => c.crop === filter);
-                let html = `<div class="card"><div class="card-title">💰 نتایج سودآوری</div>`;
-                crops.slice(0,6).forEach(c => { html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #e2e8f0;"><span style="font-weight:700;">${c.crop_fa}</span><span>${c.predicted_yield} تن</span><span class="profit-positive">${c.profit.toLocaleString()} تومان</span><span>ROI: ${c.roi}%</span></div>`; });
-                html += `<div style="margin-top:16px; padding:12px; background:#f0fdf4; border-radius:20px;"><i class="fas fa-info-circle"></i> برای تحلیل دقیق‌تر از تب نقشه استفاده کنید.</div></div>`;
-                document.getElementById('profitResultPanel').innerHTML = html;
-            } else throw new Error();
-        } catch(e) { document.getElementById('profitResultPanel').innerHTML = `<div class="card"><div class="card-title" style="color:#dc2626;">❌ خطا</div><p>سرور در دسترس نیست.</p></div>`; }
-        finally { showLoading(false); }
+        setTimeout(async () => {
+            const simulated = await getSimulatedData(0.6, 600, 17, 500, 25);
+            const filter = document.getElementById('profitCrop').value;
+            let crops = simulated.ranked_crops;
+            if (filter !== 'all') crops = crops.filter(c => c.crop === filter);
+            let html = `<div class="card"><div class="card-title">💰 نتایج سودآوری</div>`;
+            crops.slice(0,6).forEach(c => { html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #e2e8f0;"><span style="font-weight:700;">${c.crop_fa}</span><span>${c.predicted_yield} تن</span><span class="profit-positive">${c.profit.toLocaleString()} تومان</span><span>ROI: ${c.roi}%</span></div>`; });
+            html += `<div style="margin-top:16px; padding:12px; background:#f0fdf4; border-radius:20px;"><i class="fas fa-info-circle"></i> داده‌ها بر اساس شبیه‌سازی هوشمند محاسبه شده‌اند.</div></div>`;
+            document.getElementById('profitResultPanel').innerHTML = html;
+            showLoading(false);
+        }, 500);
     }
 
     function showLoading(show) { document.getElementById('loading').classList.toggle('show', show); }
+    
     function switchTab(tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
