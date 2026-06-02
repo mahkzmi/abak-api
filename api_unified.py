@@ -526,14 +526,5 @@ def health_check():
 # بخش ۸: راه‌اندازی سرور
 # ============================================================
 
-if __name__ == "__main__":
-    print("=" * 70)
-    print("🚀 ABAK 2.0 Unified API - نسخه نهایی")
-    print("=" * 70)
-    print("📊 پیش‌بینی: EC, pH, مواد آلی, بافت خاک, کربن")
-    print("💰 پیش‌بینی سود و ROI برای ۱۰ محصول")
-    print("🌐 مستندات Swagger: http://localhost:8001/docs")
-    print("🔍 تست سریع: http://localhost:8001/predict-quick?ndvi=0.6&precipitation=600&temperature=17&elevation=300&clay=25")
-    print("=" * 70)
-    
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+
+    uvicorn.run(app)
